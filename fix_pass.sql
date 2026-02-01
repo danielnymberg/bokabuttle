@@ -1,0 +1,12 @@
+DELETE FROM brannings_pass WHERE id = 5;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 0' WHERE id = 3;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 1' WHERE id = 4;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 2' WHERE id = 6;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 3' WHERE id = 7;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 4' WHERE id = 8;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 5' WHERE id = 9;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 6' WHERE id = 10;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 7' WHERE id = 11;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 8' WHERE id = 12;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 9' WHERE id = 13;
+UPDATE brannings_pass SET aktivitet = 'Bränning - Pass 10' WHERE id = 14;

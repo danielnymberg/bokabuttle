@@ -254,6 +254,11 @@
           <button class="${b.is_open ? 'danger' : 'success'}" onclick="toggleBranning(${b.id}, ${b.is_open})">${b.is_open ? 'Stäng' : 'Öppna'}</button>
         </div>
       `).join('');
+
+      // Populate pass dropdown and show section
+      const select = document.getElementById('pass-branning-id');
+      select.innerHTML = list.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+      document.getElementById('add-pass-section').style.display = '';
     } catch (e) { console.error(e); }
   }
 
@@ -301,24 +306,41 @@
     document.getElementById('create-branning-form').addEventListener('submit', async e => {
       e.preventDefault();
       try {
-        const result = await api('/api/admin/branning', {
+        await api('/api/admin/branning', {
           method: 'POST',
-          body: {
-            name: document.getElementById('branning-name').value,
-            start_date: document.getElementById('branning-start').value,
-            end_date: document.getElementById('branning-end').value,
-          }
-        });
-        const interval = parseInt(document.getElementById('branning-interval').value) || 6;
-        await api(`/api/admin/branning/${result.id}/generate-pass`, {
-          method: 'POST',
-          body: { interval }
+          body: { name: document.getElementById('branning-name').value }
         });
         document.getElementById('create-branning-form').reset();
         loadAdminBranningar();
         loadBranning();
       } catch (err) {
         console.error('Fel vid skapande:', err);
+      }
+    });
+
+    document.getElementById('add-pass-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const statusEl = document.getElementById('pass-add-status');
+      try {
+        const branningId = document.getElementById('pass-branning-id').value;
+        await api(`/api/admin/branning/${branningId}/pass`, {
+          method: 'POST',
+          body: {
+            date: document.getElementById('pass-date').value,
+            start_time: document.getElementById('pass-start').value,
+            end_time: document.getElementById('pass-end').value,
+            aktivitet: document.getElementById('pass-aktivitet').value || null,
+            antal_platser: parseInt(document.getElementById('pass-platser').value) || 2,
+            antal_reserver: parseInt(document.getElementById('pass-reserver').value) || 0,
+          }
+        });
+        statusEl.textContent = 'Pass tillagt!';
+        statusEl.style.color = '#28a745';
+        setTimeout(() => statusEl.textContent = '', 2000);
+        loadBranning();
+      } catch (err) {
+        statusEl.textContent = 'Fel: ' + (err.error || 'Kunde inte lägga till');
+        statusEl.style.color = '#dc3545';
       }
     });
 

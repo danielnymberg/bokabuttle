@@ -28,11 +28,27 @@
         <h3>Skapa bränning</h3>
         <form id="create-branning-form">
           <input type="text" id="branning-name" placeholder="Namn (t.ex. Midsommarbränning 2025)" required>
-          <label>Startdatum <input type="date" id="branning-start" required></label>
-          <label>Slutdatum <input type="date" id="branning-end" required></label>
-          <label>Passintervall (timmar) <input type="number" id="branning-interval" value="6" min="1" max="24"></label>
-          <button type="submit">Skapa bränning &amp; generera pass</button>
+          <button type="submit">Skapa bränning</button>
         </form>
+      </div>
+
+      <div class="admin-section" id="add-pass-section" style="display:none">
+        <h3>Lägg till pass</h3>
+        <form id="add-pass-form">
+          <label>Bränning <select id="pass-branning-id"></select></label>
+          <label>Datum <input type="date" id="pass-date" required></label>
+          <div style="display:flex;gap:0.5rem">
+            <label style="flex:1">Start <input type="time" id="pass-start" required></label>
+            <label style="flex:1">Slut <input type="time" id="pass-end" required></label>
+          </div>
+          <input type="text" id="pass-aktivitet" placeholder="Aktivitet (t.ex. Bränning - Pass 0)">
+          <div style="display:flex;gap:0.5rem">
+            <label style="flex:1">Platser <input type="number" id="pass-platser" value="2" min="0" max="20"></label>
+            <label style="flex:1">Reserver <input type="number" id="pass-reserver" value="2" min="0" max="20"></label>
+          </div>
+          <button type="submit">Lägg till pass</button>
+        </form>
+        <div id="pass-add-status"></div>
       </div>
 
       <div class="admin-section">
