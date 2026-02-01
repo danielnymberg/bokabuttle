@@ -1,0 +1,12 @@
+name = "bokabuttle"
+main = "worker/index.js"
+compatibility_date = "2024-12-01"
+
+[site]
+bucket = "./src"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bokabuttle-db"
+database_id = "2b31c0d3-2e60-4017-9b60-13bf66e4f1ea"
+migrations_dir = "migrations"
