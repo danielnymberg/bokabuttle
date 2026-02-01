@@ -120,8 +120,10 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; }
 
 /* --- Desktop table --- */
 @media (min-width: 768px) {
-  .pass-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  .pass-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; table-layout: fixed; }
   .pass-table th { background: #343a40; color: #fff; padding: 0.5rem; text-align: left; font-size: 0.85rem; }
+  .pass-table th:nth-child(1) { width: 100px; }
+  .pass-table th:nth-child(2) { width: 140px; }
   .pass-table td { padding: 0.4rem; border-bottom: 1px solid #dee2e6; }
   .pass-table td.plats { background: var(--green); }
   .pass-table td.reserv { background: var(--yellow); }
