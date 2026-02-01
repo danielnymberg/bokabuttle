@@ -15,12 +15,10 @@
 
   function formatTime(t) { return t.slice(0, 5); }
 
-  const FIELDS = [
-    { key: 'plats_1', label: 'Plats 1', type: 'plats' },
-    { key: 'plats_2', label: 'Plats 2', type: 'plats' },
-    { key: 'reserv_1', label: 'Reserv 1', type: 'reserv' },
-    { key: 'reserv_2', label: 'Reserv 2', type: 'reserv' },
-  ];
+  function esc(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   // --- API ---
   async function api(path, opts = {}) {
@@ -47,65 +45,113 @@
 
     let html = `<h1>${esc(branning.name)}</h1>`;
 
+    // Group pass by date
+    const byDate = {};
+    for (const p of pass) {
+      if (!byDate[p.date]) byDate[p.date] = [];
+      byDate[p.date].push(p);
+    }
+
     // Mobile cards
     html += '<div class="pass-cards-mobile">';
-    for (const p of pass) {
-      html += `<div class="pass-card">
-        <div class="pass-header">${formatDate(p.date)} ${formatTime(p.start_time)}–${formatTime(p.end_time)}</div>
-        <div class="pass-grid">`;
-      for (const f of FIELDS) {
-        const cls = closed ? 'closed' : f.type;
-        html += `<div class="pass-slot ${cls}" id="slot-${p.id}-${f.key}">
-          <label>${f.label}</label>
-          ${renderCell(p, f, closed)}
-        </div>`;
+    for (const [date, datePasses] of Object.entries(byDate)) {
+      html += `<div class="date-group"><h2 class="date-header">${formatDate(date)}</h2>`;
+      for (const p of datePasses) {
+        const aktivitet = p.aktivitet ? `<span class="aktivitet">${esc(p.aktivitet)}</span>` : '';
+        html += `<div class="pass-card">
+          <div class="pass-header">
+            ${formatTime(p.start_time)}–${formatTime(p.end_time)} ${aktivitet}
+          </div>
+          <div class="pass-slots">`;
+
+        const platser = p.slots.filter(s => s.typ === 'plats');
+        const reserver = p.slots.filter(s => s.typ === 'reserv');
+
+        if (platser.length > 0) {
+          html += '<div class="slot-group"><div class="slot-group-label">Platser</div><div class="slot-grid">';
+          for (const s of platser) {
+            html += renderSlot(p, s, closed);
+          }
+          html += '</div></div>';
+        }
+        if (reserver.length > 0) {
+          html += '<div class="slot-group"><div class="slot-group-label">Reserver</div><div class="slot-grid">';
+          for (const s of reserver) {
+            html += renderSlot(p, s, closed);
+          }
+          html += '</div></div>';
+        }
+
+        html += '</div></div>';
       }
-      html += '</div></div>';
+      html += '</div>';
     }
     html += '</div>';
 
     // Desktop table
-    html += `<div class="pass-table-desktop"><table class="pass-table">
-      <thead><tr><th>Pass</th><th>Plats 1</th><th>Plats 2</th><th>Reserv 1</th><th>Reserv 2</th></tr></thead><tbody>`;
-    for (const p of pass) {
-      html += `<tr><td class="pass-time">${formatDate(p.date)} ${formatTime(p.start_time)}–${formatTime(p.end_time)}</td>`;
-      for (const f of FIELDS) {
-        const cls = closed ? 'closed' : f.type;
-        html += `<td class="${cls}" id="cell-${p.id}-${f.key}">${renderCell(p, f, closed)}</td>`;
+    html += '<div class="pass-table-desktop">';
+    for (const [date, datePasses] of Object.entries(byDate)) {
+      html += `<h2 class="date-header">${formatDate(date)}</h2>`;
+      html += '<table class="pass-table"><thead><tr><th>Tid</th><th>Aktivitet</th><th>Platser</th><th>Reserver</th></tr></thead><tbody>';
+      for (const p of datePasses) {
+        const platser = p.slots.filter(s => s.typ === 'plats');
+        const reserver = p.slots.filter(s => s.typ === 'reserv');
+        html += `<tr>
+          <td class="pass-time">${formatTime(p.start_time)}–${formatTime(p.end_time)}</td>
+          <td class="pass-aktivitet">${esc(p.aktivitet || '')}</td>
+          <td class="plats ${closed ? 'closed' : ''}">${platser.map(s => renderSlotInline(p, s, closed)).join('')}</td>
+          <td class="reserv ${closed ? 'closed' : ''}">${reserver.map(s => renderSlotInline(p, s, closed)).join('')}</td>
+        </tr>`;
       }
-      html += '</tr>';
+      html += '</tbody></table>';
     }
-    html += '</tbody></table></div>';
+    html += '</div>';
 
     // Summary
     html += renderSummary(pass);
 
     app.innerHTML = html;
-    attachInputListeners(pass, closed);
+    attachInputListeners();
   }
 
-  function renderCell(pass, field, closed) {
-    const value = pass[field.key];
-    if (value) {
+  function renderSlot(pass, slot, closed) {
+    const cls = closed ? 'closed' : slot.typ;
+    const id = `slot-${pass.id}-${slot.typ}-${slot.slot_nr}`;
+    if (slot.namn) {
       if (isAdmin) {
-        return `<input type="text" value="${esc(value)}" data-pass="${pass.id}" data-field="${field.key}" data-admin="1" maxlength="40" ${closed ? '' : ''}>`;
+        return `<div class="pass-slot ${cls}" id="${id}">
+          <input type="text" value="${esc(slot.namn)}" data-pass="${pass.id}" data-typ="${slot.typ}" data-slot="${slot.slot_nr}" data-admin="1" maxlength="40">
+        </div>`;
       }
-      return `<span class="name-display">${esc(value)}</span>`;
+      return `<div class="pass-slot ${cls}" id="${id}"><span class="name-display">${esc(slot.namn)}</span></div>`;
     }
-    if (closed) return `<span class="name-display">—</span>`;
-    return `<input type="text" placeholder="Skriv ditt namn" data-pass="${pass.id}" data-field="${field.key}" maxlength="40">`;
+    if (closed) return `<div class="pass-slot ${cls}" id="${id}"><span class="name-display">—</span></div>`;
+    return `<div class="pass-slot ${cls}" id="${id}">
+      <input type="text" placeholder="Skriv ditt namn" data-pass="${pass.id}" data-typ="${slot.typ}" data-slot="${slot.slot_nr}" maxlength="40">
+    </div>`;
+  }
+
+  function renderSlotInline(pass, slot, closed) {
+    const id = `cell-${pass.id}-${slot.typ}-${slot.slot_nr}`;
+    if (slot.namn) {
+      if (isAdmin) {
+        return `<span class="inline-slot" id="${id}"><input type="text" value="${esc(slot.namn)}" data-pass="${pass.id}" data-typ="${slot.typ}" data-slot="${slot.slot_nr}" data-admin="1" maxlength="40"></span>`;
+      }
+      return `<span class="inline-slot" id="${id}"><span class="name-display">${esc(slot.namn)}</span></span>`;
+    }
+    if (closed) return `<span class="inline-slot" id="${id}"><span class="name-display">—</span></span>`;
+    return `<span class="inline-slot" id="${id}"><input type="text" placeholder="Namn" data-pass="${pass.id}" data-typ="${slot.typ}" data-slot="${slot.slot_nr}" maxlength="40"></span>`;
   }
 
   function renderSummary(pass) {
     const counts = {};
     for (const p of pass) {
-      for (const f of FIELDS) {
-        const name = p[f.key];
-        if (name) {
-          const key = name.trim().toLowerCase();
-          if (!counts[key]) counts[key] = { name: name.trim(), total: 0, reserv: 0 };
+      for (const s of (p.slots || [])) {
+        if (s.namn) {
+          const key = s.namn.trim().toLowerCase();
+          if (!counts[key]) counts[key] = { name: s.namn.trim(), total: 0, reserv: 0 };
           counts[key].total++;
-          if (f.type === 'reserv') counts[key].reserv++;
+          if (s.typ === 'reserv') counts[key].reserv++;
         }
       }
     }
@@ -119,50 +165,43 @@
     return `<div class="summary">${parts.join(' | ')}</div>`;
   }
 
-  function esc(s) {
-    if (!s) return '';
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function attachInputListeners(pass, closed) {
+  function attachInputListeners() {
     document.querySelectorAll('input[data-pass]').forEach(input => {
       const passId = input.dataset.pass;
-      const field = input.dataset.field;
+      const typ = input.dataset.typ;
+      const slotNr = parseInt(input.dataset.slot);
       const isAdminEdit = input.dataset.admin === '1';
 
       input.addEventListener('input', () => {
-        const key = `${passId}-${field}`;
+        const key = `${passId}-${typ}-${slotNr}`;
         clearTimeout(debounceTimers[key]);
-        debounceTimers[key] = setTimeout(() => saveCell(passId, field, input.value.trim(), input, isAdminEdit), 500);
+        debounceTimers[key] = setTimeout(() => saveSlot(passId, typ, slotNr, input.value.trim(), input, isAdminEdit), 500);
       });
     });
   }
 
-  async function saveCell(passId, field, name, inputEl, adminEdit) {
-    if (!name) return;
+  async function saveSlot(passId, typ, slotNr, namn, inputEl, adminEdit) {
+    if (!namn && !adminEdit) return;
     try {
-      const endpoint = adminEdit ? `/api/admin/pass/${passId}` : `/api/pass/${passId}`;
-      const updated = await api(endpoint, { method: 'PUT', body: { field, name } });
+      const endpoint = adminEdit ? `/api/admin/pass/${passId}/book` : `/api/pass/${passId}/book`;
+      await api(endpoint, { method: 'PUT', body: { typ, slot_nr: slotNr, namn } });
 
-      // Flash green
-      const slot = inputEl.closest('.pass-slot, td');
+      const slot = inputEl.closest('.pass-slot, .inline-slot, td');
       if (slot) {
         slot.classList.remove('just-saved');
         void slot.offsetWidth;
         slot.classList.add('just-saved');
       }
 
-      // If non-admin and saved, replace input with text
-      if (!adminEdit) {
+      if (!adminEdit && namn) {
         inputEl.replaceWith(Object.assign(document.createElement('span'), {
           className: 'name-display',
-          textContent: updated[field]
+          textContent: namn
         }));
       }
     } catch (err) {
       if (err.status === 409) {
-        // Conflict - someone else took this slot
-        const slot = inputEl.closest('.pass-slot, td');
+        const slot = inputEl.closest('.pass-slot, .inline-slot, td');
         if (slot) {
           slot.classList.add('conflict');
           setTimeout(() => slot.classList.remove('conflict'), 1500);
@@ -200,7 +239,7 @@
     document.getElementById('admin-login').classList.add('hidden');
     document.getElementById('admin-tools').classList.remove('hidden');
     loadAdminBranningar();
-    loadBranning(); // Re-render with admin inputs
+    loadBranning();
   }
 
   async function loadAdminBranningar() {
@@ -229,7 +268,6 @@
     await loadBranning();
     await checkAdmin();
 
-    // Admin link
     document.getElementById('admin-link').addEventListener('click', e => {
       e.preventDefault();
       const panel = document.getElementById('admin-panel');
@@ -240,7 +278,6 @@
       }
     });
 
-    // Login form
     document.getElementById('login-form').addEventListener('submit', async e => {
       e.preventDefault();
       const errEl = document.getElementById('login-error');
@@ -261,7 +298,6 @@
       }
     });
 
-    // Create branning
     document.getElementById('create-branning-form').addEventListener('submit', async e => {
       e.preventDefault();
       try {
@@ -282,11 +318,10 @@
         loadAdminBranningar();
         loadBranning();
       } catch (err) {
-        alert('Fel: ' + (err.error || 'Okänt fel'));
+        console.error('Fel vid skapande:', err);
       }
     });
 
-    // Create admin
     document.getElementById('create-admin-form').addEventListener('submit', async e => {
       e.preventDefault();
       try {
@@ -300,11 +335,10 @@
         });
         document.getElementById('create-admin-form').reset();
       } catch (err) {
-        alert('Fel: ' + (err.error || 'Okänt fel'));
+        console.error('Fel:', err);
       }
     });
 
-    // Logout
     document.getElementById('logout-btn').addEventListener('click', async () => {
       await api('/api/admin/logout', { method: 'POST' });
       isAdmin = false;

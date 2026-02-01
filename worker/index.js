@@ -1,6 +1,5 @@
 import { hashPassword, verifyPassword, createJWT, verifyJWT, getAuthCookie, parseCookies } from './auth.js';
 
-// Sanitize input - strip HTML tags
 function sanitize(str) {
   if (!str) return null;
   return str.replace(/<[^>]*>/g, '').trim().slice(0, 40) || null;
@@ -13,11 +12,33 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-// Auth middleware
 async function getAdmin(request, env) {
   const cookies = parseCookies(request.headers.get('Cookie'));
   if (!cookies.token) return null;
   return verifyJWT(cookies.token, env.JWT_SECRET);
+}
+
+// Build slots array for a pass (creates missing rows on read)
+async function getSlotsForPass(env, passId, antalPlatser, antalReserver) {
+  const existing = await env.DB.prepare(
+    'SELECT * FROM pass_bokningar WHERE pass_id = ? ORDER BY typ, slot_nr'
+  ).bind(passId).all();
+
+  const slots = [];
+  const existingMap = {};
+  for (const row of existing.results) {
+    existingMap[`${row.typ}-${row.slot_nr}`] = row;
+  }
+
+  for (let i = 1; i <= antalPlatser; i++) {
+    const key = `plats-${i}`;
+    slots.push(existingMap[key] || { pass_id: passId, slot_nr: i, typ: 'plats', namn: null });
+  }
+  for (let i = 1; i <= antalReserver; i++) {
+    const key = `reserv-${i}`;
+    slots.push(existingMap[key] || { pass_id: passId, slot_nr: i, typ: 'reserv', namn: null });
+  }
+  return slots;
 }
 
 export default {
@@ -26,60 +47,97 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
-    // API routes
     if (path.startsWith('/api/')) {
-      // --- PUBLIC ---
 
-      // GET current open branning with all pass
+      // GET current open branning with all pass + bokningar
       if (method === 'GET' && path === '/api/branning') {
         const branning = await env.DB.prepare(
           'SELECT * FROM branningar WHERE is_open = 1 ORDER BY created_at DESC LIMIT 1'
         ).first();
         if (!branning) return json({ branning: null, pass: [] });
-        const pass = await env.DB.prepare(
+
+        const passResult = await env.DB.prepare(
           'SELECT * FROM brannings_pass WHERE branning_id = ? ORDER BY date, start_time'
         ).bind(branning.id).all();
-        return json({ branning, pass: pass.results });
+
+        const allBokningar = await env.DB.prepare(
+          `SELECT pb.* FROM pass_bokningar pb
+           JOIN brannings_pass bp ON bp.id = pb.pass_id
+           WHERE bp.branning_id = ?
+           ORDER BY pb.pass_id, pb.typ, pb.slot_nr`
+        ).bind(branning.id).all();
+
+        const bokningarByPass = {};
+        for (const b of allBokningar.results) {
+          if (!bokningarByPass[b.pass_id]) bokningarByPass[b.pass_id] = [];
+          bokningarByPass[b.pass_id].push(b);
+        }
+
+        const pass = passResult.results.map(p => {
+          const existing = bokningarByPass[p.id] || [];
+          const existingMap = {};
+          for (const row of existing) existingMap[`${row.typ}-${row.slot_nr}`] = row;
+
+          const slots = [];
+          for (let i = 1; i <= (p.antal_platser || 2); i++) {
+            slots.push(existingMap[`plats-${i}`] || { pass_id: p.id, slot_nr: i, typ: 'plats', namn: null });
+          }
+          for (let i = 1; i <= (p.antal_reserver || 2); i++) {
+            slots.push(existingMap[`reserv-${i}`] || { pass_id: p.id, slot_nr: i, typ: 'reserv', namn: null });
+          }
+          return { ...p, slots };
+        });
+
+        return json({ branning, pass });
       }
 
-      // PUT update a cell (first-write-wins for non-admin)
-      if (method === 'PUT' && path.match(/^\/api\/pass\/\d+$/)) {
-        const id = parseInt(path.split('/').pop());
+      // PUT book a slot (first-write-wins)
+      if (method === 'PUT' && path.match(/^\/api\/pass\/\d+\/book$/)) {
+        const passId = parseInt(path.split('/')[3]);
         const body = await request.json();
-        const field = body.field;
-        const name = sanitize(body.name);
+        const { typ, slot_nr, namn: rawNamn } = body;
+        const namn = sanitize(rawNamn);
 
-        if (!['plats_1', 'plats_2', 'reserv_1', 'reserv_2'].includes(field)) {
-          return json({ error: 'Ogiltigt fält' }, 400);
-        }
-        if (!name) return json({ error: 'Namn krävs' }, 400);
+        if (!['plats', 'reserv'].includes(typ)) return json({ error: 'Ogiltig typ' }, 400);
+        if (!slot_nr || slot_nr < 1) return json({ error: 'Ogiltigt slot_nr' }, 400);
+        if (!namn) return json({ error: 'Namn krävs' }, 400);
 
-        // Check branning is open
         const pass = await env.DB.prepare(
           `SELECT bp.*, b.is_open FROM brannings_pass bp
-           JOIN branningar b ON b.id = bp.branning_id
-           WHERE bp.id = ?`
-        ).bind(id).first();
+           JOIN branningar b ON b.id = bp.branning_id WHERE bp.id = ?`
+        ).bind(passId).first();
         if (!pass) return json({ error: 'Passet finns inte' }, 404);
         if (!pass.is_open) return json({ error: 'Bränningen är stängd' }, 403);
 
-        // First-write-wins: only write if cell is empty
-        if (pass[field]) {
-          return json({ error: 'Platsen är redan tagen', taken_by: pass[field] }, 409);
+        const maxSlot = typ === 'plats' ? (pass.antal_platser || 2) : (pass.antal_reserver || 2);
+        if (slot_nr > maxSlot) return json({ error: 'Ogiltigt platsnummer' }, 400);
+
+        // Check if slot exists
+        const existing = await env.DB.prepare(
+          'SELECT * FROM pass_bokningar WHERE pass_id = ? AND typ = ? AND slot_nr = ?'
+        ).bind(passId, typ, slot_nr).first();
+
+        if (existing && existing.namn) {
+          return json({ error: 'Platsen är redan tagen', taken_by: existing.namn }, 409);
         }
 
-        await env.DB.prepare(
-          `UPDATE brannings_pass SET ${field} = ? WHERE id = ? AND ${field} IS NULL`
-        ).bind(name, id).run();
+        if (existing) {
+          await env.DB.prepare(
+            'UPDATE pass_bokningar SET namn = ? WHERE id = ? AND namn IS NULL'
+          ).bind(namn, existing.id).run();
+        } else {
+          await env.DB.prepare(
+            'INSERT INTO pass_bokningar (pass_id, slot_nr, typ, namn) VALUES (?, ?, ?, ?)'
+          ).bind(passId, slot_nr, typ, namn).run();
+        }
 
-        // Re-fetch to confirm
-        const updated = await env.DB.prepare('SELECT * FROM brannings_pass WHERE id = ?').bind(id).first();
+        const updated = await env.DB.prepare(
+          'SELECT * FROM pass_bokningar WHERE pass_id = ? AND typ = ? AND slot_nr = ?'
+        ).bind(passId, typ, slot_nr).first();
         return json(updated);
       }
 
       // --- ADMIN ---
-
-      // Login
       if (method === 'POST' && path === '/api/admin/login') {
         const body = await request.json();
         const admin = await env.DB.prepare('SELECT * FROM admins WHERE email = ?').bind(body.email).first();
@@ -90,21 +148,18 @@ export default {
         return json({ name: admin.name }, 200, { 'Set-Cookie': getAuthCookie(token) });
       }
 
-      // Check auth status
       if (method === 'GET' && path === '/api/admin/me') {
         const admin = await getAdmin(request, env);
         if (!admin) return json({ error: 'Ej inloggad' }, 401);
         return json({ id: admin.id, name: admin.name });
       }
 
-      // Logout
       if (method === 'POST' && path === '/api/admin/logout') {
         return json({ ok: true }, 200, {
           'Set-Cookie': 'token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'
         });
       }
 
-      // All other admin routes require auth
       if (path.startsWith('/api/admin/')) {
         const admin = await getAdmin(request, env);
         if (!admin) return json({ error: 'Ej behörig' }, 401);
@@ -118,11 +173,24 @@ export default {
           return json({ id: result.meta.last_row_id });
         }
 
-        // Generate pass for branning
+        // Add pass to branning (flexible)
+        if (method === 'POST' && path.match(/^\/api\/admin\/branning\/\d+\/pass$/)) {
+          const branningId = parseInt(path.split('/')[4]);
+          const body = await request.json();
+          // body: { date, start_time, end_time, aktivitet, antal_platser, antal_reserver }
+          const result = await env.DB.prepare(
+            `INSERT INTO brannings_pass (branning_id, date, start_time, end_time, aktivitet, antal_platser, antal_reserver)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).bind(branningId, body.date, body.start_time, body.end_time,
+            body.aktivitet || null, body.antal_platser || 2, body.antal_reserver || 2).run();
+          return json({ id: result.meta.last_row_id });
+        }
+
+        // Generate pass (simple interval-based, kept for convenience)
         if (method === 'POST' && path.match(/^\/api\/admin\/branning\/\d+\/generate-pass$/)) {
           const branningId = parseInt(path.split('/')[4]);
           const body = await request.json();
-          const interval = body.interval || 6; // hours
+          const interval = body.interval || 6;
 
           const branning = await env.DB.prepare('SELECT * FROM branningar WHERE id = ?').bind(branningId).first();
           if (!branning) return json({ error: 'Bränningen finns inte' }, 404);
@@ -138,17 +206,17 @@ export default {
               const endH = String((h + interval) % 24).padStart(2, '0') + ':00';
               stmts.push(
                 env.DB.prepare(
-                  'INSERT INTO brannings_pass (branning_id, date, start_time, end_time) VALUES (?, ?, ?, ?)'
+                  `INSERT INTO brannings_pass (branning_id, date, start_time, end_time, aktivitet, antal_platser, antal_reserver)
+                   VALUES (?, ?, ?, ?, 'Bränning', 2, 2)`
                 ).bind(branningId, dateStr, startH, endH)
               );
             }
           }
-
           if (stmts.length > 0) await env.DB.batch(stmts);
           return json({ created: stmts.length });
         }
 
-        // Update branning (open/close)
+        // Update branning
         if (method === 'PUT' && path.match(/^\/api\/admin\/branning\/\d+$/)) {
           const id = parseInt(path.split('/').pop());
           const body = await request.json();
@@ -161,23 +229,28 @@ export default {
           return json({ ok: true });
         }
 
-        // Admin update pass (can overwrite/clear)
-        if (method === 'PUT' && path.match(/^\/api\/admin\/pass\/\d+$/)) {
-          const id = parseInt(path.split('/').pop());
+        // Admin update slot (can overwrite/clear)
+        if (method === 'PUT' && path.match(/^\/api\/admin\/pass\/\d+\/book$/)) {
+          const passId = parseInt(path.split('/')[4]);
           const body = await request.json();
-          const field = body.field;
-          const name = body.name === '' ? null : sanitize(body.name);
+          const { typ, slot_nr, namn: rawNamn } = body;
+          const namn = rawNamn === '' ? null : sanitize(rawNamn);
 
-          if (!['plats_1', 'plats_2', 'reserv_1', 'reserv_2'].includes(field)) {
-            return json({ error: 'Ogiltigt fält' }, 400);
+          if (!['plats', 'reserv'].includes(typ)) return json({ error: 'Ogiltig typ' }, 400);
+
+          const existing = await env.DB.prepare(
+            'SELECT * FROM pass_bokningar WHERE pass_id = ? AND typ = ? AND slot_nr = ?'
+          ).bind(passId, typ, slot_nr).first();
+
+          if (existing) {
+            await env.DB.prepare('UPDATE pass_bokningar SET namn = ? WHERE id = ?').bind(namn, existing.id).run();
+          } else if (namn) {
+            await env.DB.prepare(
+              'INSERT INTO pass_bokningar (pass_id, slot_nr, typ, namn) VALUES (?, ?, ?, ?)'
+            ).bind(passId, slot_nr, typ, namn).run();
           }
 
-          await env.DB.prepare(
-            `UPDATE brannings_pass SET ${field} = ? WHERE id = ?`
-          ).bind(name, id).run();
-
-          const updated = await env.DB.prepare('SELECT * FROM brannings_pass WHERE id = ?').bind(id).first();
-          return json(updated);
+          return json({ ok: true });
         }
 
         // Delete branning
@@ -187,7 +260,7 @@ export default {
           return json({ ok: true });
         }
 
-        // List all branningar (for admin panel)
+        // List branningar
         if (method === 'GET' && path === '/api/admin/branningar') {
           const result = await env.DB.prepare('SELECT * FROM branningar ORDER BY created_at DESC').all();
           return json(result.results);
@@ -213,8 +286,6 @@ export default {
       return json({ error: 'Not found' }, 404);
     }
 
-    // --- STATIC FILES ---
-    // Serve from site bucket (Cloudflare handles this via [site] config)
     return env.ASSETS.fetch(request);
   }
 };

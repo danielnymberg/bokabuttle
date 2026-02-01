@@ -45,12 +45,19 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; }
   font-size: 0.9rem;
 }
 
-.pass-grid {
+.pass-slots { padding: 0.5rem; }
+
+.slot-group { margin-bottom: 0.5rem; }
+.slot-group:last-child { margin-bottom: 0; }
+.slot-group-label { font-size: 0.7rem; text-transform: uppercase; font-weight: 600; color: #495057; margin-bottom: 0.25rem; }
+
+.slot-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: #dee2e6;
+  gap: 4px;
 }
+
+.aktivitet { font-weight: 400; opacity: 0.85; margin-left: 0.5rem; }
 
 .pass-slot {
   padding: 0.5rem;
@@ -93,18 +100,27 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; }
   0% { box-shadow: inset 0 0 0 2px var(--green-border); }
   100% { box-shadow: none; }
 }
-.pass-slot.just-saved { animation: saved 1s ease-out; }
+.pass-slot.just-saved, .inline-slot.just-saved { animation: saved 1s ease-out; }
 
 /* Conflict flash */
 @keyframes conflict {
   0% { box-shadow: inset 0 0 0 2px #dc3545; }
   100% { box-shadow: none; }
 }
-.pass-slot.conflict { animation: conflict 1.5s ease-out; }
+.pass-slot.conflict, .inline-slot.conflict { animation: conflict 1.5s ease-out; }
+
+/* Date grouping */
+.date-header { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; color: #343a40; }
+.date-header:first-child { margin-top: 0.5rem; }
+
+/* Inline slots (desktop table) */
+.inline-slot { display: inline-block; margin: 2px; }
+.inline-slot input { width: 120px; }
+.inline-slot .name-display { display: inline-block; padding: 0.2rem 0.4rem; }
 
 /* --- Desktop table --- */
 @media (min-width: 768px) {
-  .pass-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  .pass-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
   .pass-table th { background: #343a40; color: #fff; padding: 0.5rem; text-align: left; font-size: 0.85rem; }
   .pass-table td { padding: 0.4rem; border-bottom: 1px solid #dee2e6; }
   .pass-table td.plats { background: var(--green); }

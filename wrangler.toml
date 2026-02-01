@@ -2,8 +2,9 @@ name = "bokabuttle"
 main = "worker/index.js"
 compatibility_date = "2024-12-01"
 
-[site]
-bucket = "./src"
+[assets]
+directory = "./src"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
