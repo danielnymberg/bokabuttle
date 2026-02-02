@@ -4,6 +4,7 @@
   let isAdmin = false;
   let currentBranning = null;
   let debounceTimers = {};
+  let pendingBookings = {};
 
   const WEEKDAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
   const MONTHS = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -30,6 +31,77 @@
     const data = await res.json();
     if (!res.ok) throw { status: res.status, ...data };
     return data;
+  }
+
+  // --- PENDING BOOKINGS ---
+  function pendingKey(passId, typ, slotNr) {
+    return `${passId}-${typ}-${slotNr}`;
+  }
+
+  function updatePending(passId, typ, slotNr, namn) {
+    const key = pendingKey(passId, typ, slotNr);
+    if (namn) {
+      pendingBookings[key] = { passId, typ, slotNr, namn };
+    } else {
+      delete pendingBookings[key];
+    }
+    updateSaveButton();
+  }
+
+  function updateSaveButton() {
+    const btn = document.getElementById('save-all-btn');
+    const count = Object.keys(pendingBookings).length;
+    if (count > 0) {
+      btn.textContent = `Spara ${count} bokning${count > 1 ? 'ar' : ''}`;
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+
+  async function saveAll() {
+    const entries = Object.values(pendingBookings);
+    if (!entries.length) return;
+
+    const btn = document.getElementById('save-all-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sparar...';
+
+    const results = [];
+    for (const b of entries) {
+      try {
+        await api(`/api/pass/${b.passId}/book`, {
+          method: 'PUT',
+          body: { typ: b.typ, slot_nr: b.slotNr, namn: b.namn }
+        });
+        results.push({ ...b, ok: true });
+      } catch (err) {
+        results.push({ ...b, ok: false, takenBy: err.taken_by || 'någon annan' });
+      }
+    }
+
+    pendingBookings = {};
+    btn.classList.add('hidden');
+    btn.disabled = false;
+
+    const ok = results.filter(r => r.ok).length;
+    const fail = results.filter(r => !r.ok);
+    const msgEl = document.getElementById('save-message');
+
+    if (fail.length === 0) {
+      msgEl.textContent = `${ok} bokning${ok > 1 ? 'ar' : ''} sparad${ok > 1 ? 'e' : ''}!`;
+      msgEl.className = 'save-message success';
+    } else {
+      const failMsgs = fail.map(f => `${f.typ === 'plats' ? 'Plats' : 'Reserv'} ${f.slotNr} togs av ${f.takenBy}`);
+      msgEl.textContent = ok > 0
+        ? `${ok} sparad${ok > 1 ? 'e' : ''}. Misslyckades: ${failMsgs.join(', ')}`
+        : `Kunde inte spara: ${failMsgs.join(', ')}`;
+      msgEl.className = 'save-message error';
+    }
+    msgEl.classList.remove('hidden');
+    setTimeout(() => msgEl.classList.add('hidden'), 5000);
+
+    await loadBranning();
   }
 
   // --- RENDER ---
@@ -111,6 +183,8 @@
     html += renderSummary(pass);
 
     app.innerHTML = html;
+    pendingBookings = {};
+    updateSaveButton();
     attachInputListeners();
   }
 
@@ -172,46 +246,38 @@
       const slotNr = parseInt(input.dataset.slot);
       const isAdminEdit = input.dataset.admin === '1';
 
-      input.addEventListener('input', () => {
-        const key = `${passId}-${typ}-${slotNr}`;
-        clearTimeout(debounceTimers[key]);
-        debounceTimers[key] = setTimeout(() => saveSlot(passId, typ, slotNr, input.value.trim(), input, isAdminEdit), 500);
-      });
+      if (isAdminEdit) {
+        // Admin: keep auto-save with debounce
+        input.addEventListener('input', () => {
+          const key = `${passId}-${typ}-${slotNr}`;
+          clearTimeout(debounceTimers[key]);
+          debounceTimers[key] = setTimeout(() => saveSlotAdmin(passId, typ, slotNr, input.value.trim(), input), 500);
+        });
+      } else {
+        // Regular user: collect pending, save on button click
+        input.addEventListener('input', () => {
+          const namn = input.value.trim();
+          updatePending(passId, typ, slotNr, namn);
+          const slot = input.closest('.pass-slot, .inline-slot, td');
+          if (slot) {
+            slot.classList.toggle('pending', !!namn);
+          }
+        });
+      }
     });
   }
 
-  async function saveSlot(passId, typ, slotNr, namn, inputEl, adminEdit) {
-    if (!namn && !adminEdit) return;
+  async function saveSlotAdmin(passId, typ, slotNr, namn, inputEl) {
     try {
-      const endpoint = adminEdit ? `/api/admin/pass/${passId}/book` : `/api/pass/${passId}/book`;
-      await api(endpoint, { method: 'PUT', body: { typ, slot_nr: slotNr, namn } });
-
+      await api(`/api/admin/pass/${passId}/book`, { method: 'PUT', body: { typ, slot_nr: slotNr, namn } });
       const slot = inputEl.closest('.pass-slot, .inline-slot, td');
       if (slot) {
         slot.classList.remove('just-saved');
         void slot.offsetWidth;
         slot.classList.add('just-saved');
       }
-
-      if (!adminEdit && namn) {
-        inputEl.replaceWith(Object.assign(document.createElement('span'), {
-          className: 'name-display',
-          textContent: namn
-        }));
-      }
     } catch (err) {
-      if (err.status === 409) {
-        const slot = inputEl.closest('.pass-slot, .inline-slot, td');
-        if (slot) {
-          slot.classList.add('conflict');
-          setTimeout(() => slot.classList.remove('conflict'), 1500);
-        }
-        inputEl.value = '';
-        inputEl.placeholder = `Tagen av ${err.taken_by}`;
-        setTimeout(() => loadBranning(), 1000);
-      } else {
-        console.error('Sparfel:', err);
-      }
+      console.error('Sparfel:', err);
     }
   }
 
@@ -270,6 +336,9 @@
 
   // --- INIT ---
   document.addEventListener('DOMContentLoaded', async () => {
+    // Save button
+    document.getElementById('save-all-btn').addEventListener('click', saveAll);
+
     await loadBranning();
     await checkAdmin();
 
