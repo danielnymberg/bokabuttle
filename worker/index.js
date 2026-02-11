@@ -200,7 +200,7 @@ export default {
           const stmts = [];
 
           for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             for (let h = 0; h < 24; h += interval) {
               const startH = String(h).padStart(2, '0') + ':00';
               const endH = String((h + interval) % 24).padStart(2, '0') + ':00';
