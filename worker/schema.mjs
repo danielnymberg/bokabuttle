@@ -6,19 +6,26 @@
 // från tändningen till nästa skiftbyte, det sista passet är det som pågår när
 // elden släcks. Två eldvakter och två reserver per pass.
 //
+// Efter den planerade släckningen läggs ett reservpass — bemannas bara om
+// elden inte är släckt i tid. I mars 2026 stod folk på passen efter
+// släckningen utan att veta att de var reserv; nu står det i namnet.
+//
 // Dagen efter släckningen kyls ugnen. Tömningen väntar till måndagen därpå —
 // ugnen ska hinna svalna över helgen, och tömning har aldrig lagts på en
 // lördag eller söndag. Städning och beredskapsdag följer direkt på tömningen.
+// Alla dagar har reserver: i mars skrev folk riktiga namn i reservfälten
+// även på tömning och beredskapsdag.
 
 export const SKIFTBYTEN = ['06:00', '15:00', '23:00'];
 
 const EFTERARBETE = [
-  { from: '08:00', till: '16:00', namn: 'Tömning', platser: 5, reserver: 0 },
-  { from: '08:00', till: '16:00', namn: 'Städa av, inventera', platser: 5, reserver: 0 },
-  { from: '08:00', till: '16:00', namn: 'Extra dag (beredskap)', platser: 3, reserver: 0 },
+  { from: '08:00', till: '16:00', namn: 'Tömning', platser: 5, reserver: 2 },
+  { from: '08:00', till: '16:00', namn: 'Städa av, inventera', platser: 5, reserver: 2 },
+  { from: '08:00', till: '16:00', namn: 'Extra dag (beredskap)', platser: 3, reserver: 2 },
 ];
 
-const KYLNING = { from: '09:00', till: '12:00', namn: 'Kylning', platser: 2, reserver: 0 };
+const KYLNING = { from: '09:00', till: '12:00', namn: 'Kylning', platser: 2, reserver: 2 };
+const RESERVPASS = 'Reservpass — bara om elden inte är släckt';
 
 const WEEKDAYS = ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'];
 
@@ -74,7 +81,7 @@ export function genereraSchema({ stapling = [], tandning, slackning }) {
       end_time: dag.till ?? '16:00',
       aktivitet: dag.namn || 'Stapling',
       antal_platser: dag.personer ?? 6,
-      antal_reserver: 0,
+      antal_reserver: 2,
     });
   }
 
@@ -91,15 +98,27 @@ export function genereraSchema({ stapling = [], tandning, slackning }) {
       date: datum,
       start_time: klockslag,
       end_time: nasta.klockslag,
-      aktivitet: `Bränning - Pass ${nr}`,
+      aktivitet: `Eldningspass ${nr}`,
       antal_platser: 2,
       antal_reserver: 2,
     });
     ({ datum, klockslag } = nasta);
   }
 
-  // datum står nu på dygnet då sista passet slutar.
-  const kylningsdag = addDays(datum, 1);
+  // datum/klockslag står nu där sista eldningspasset slutar — reservpasset
+  // tar vid där. Kylningen räknas från eldningspassen, inte från reserven.
+  const sistaEldningsdag = datum;
+  const reserv = nastaSkifte(datum, klockslag);
+  rader.push({
+    date: datum,
+    start_time: klockslag,
+    end_time: reserv.klockslag,
+    aktivitet: RESERVPASS,
+    antal_platser: 2,
+    antal_reserver: 2,
+  });
+
+  const kylningsdag = addDays(sistaEldningsdag, 1);
   rader.push({
     date: kylningsdag,
     start_time: KYLNING.from,

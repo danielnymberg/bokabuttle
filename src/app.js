@@ -351,7 +351,7 @@
 
   function visaForhandsvisning(pass, indata) {
     const rutan = document.getElementById('schema-forhandsvisning');
-    const antalBrannpass = pass.filter(p => p.aktivitet.startsWith('Bränning')).length;
+    const antalBrannpass = pass.filter(p => p.aktivitet.startsWith('Eldningspass')).length;
 
     const rader = pass.map(p => `
       <tr>
@@ -363,7 +363,7 @@
 
     rutan.innerHTML = `
       <p class="forhandsvisning-sammanfattning">
-        ${pass.length} rader, varav ${antalBrannpass} bränningspass.
+        ${pass.length} rader, varav ${antalBrannpass} eldningspass.
         Skapar du bränningen är det den som visas på sidan. Den som är öppen nu
         stängs, men behåller sina bokningar.
       </p>

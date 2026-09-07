@@ -43,7 +43,7 @@ try {
   process.exit(1);
 }
 
-const brannPass = pass.filter((p) => p.aktivitet.startsWith('Bränning'));
+const brannPass = pass.filter((p) => p.aktivitet.startsWith('Eldningspass'));
 console.log(`-- Elden tänds ${veckodag(tandning[0])} ${tandning[0]} kl ${tandning[1]}`);
 console.log(`-- Släcks ${veckodag(slackning[0])} ${slackning[0]} kl ${slackning[1]} — ${brannPass.length} bränningspass`);
 for (const p of pass) {
