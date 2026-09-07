@@ -79,10 +79,10 @@ export default {
           for (const row of existing) existingMap[`${row.typ}-${row.slot_nr}`] = row;
 
           const slots = [];
-          for (let i = 1; i <= (p.antal_platser || 2); i++) {
+          for (let i = 1; i <= (p.antal_platser ?? 2); i++) {
             slots.push(existingMap[`plats-${i}`] || { pass_id: p.id, slot_nr: i, typ: 'plats', namn: null });
           }
-          for (let i = 1; i <= (p.antal_reserver || 2); i++) {
+          for (let i = 1; i <= (p.antal_reserver ?? 2); i++) {
             slots.push(existingMap[`reserv-${i}`] || { pass_id: p.id, slot_nr: i, typ: 'reserv', namn: null });
           }
           return { ...p, slots };
@@ -109,7 +109,7 @@ export default {
         if (!pass) return json({ error: 'Passet finns inte' }, 404);
         if (!pass.is_open) return json({ error: 'Bränningen är stängd' }, 403);
 
-        const maxSlot = typ === 'plats' ? (pass.antal_platser || 2) : (pass.antal_reserver || 2);
+        const maxSlot = typ === 'plats' ? (pass.antal_platser ?? 2) : (pass.antal_reserver ?? 2);
         if (slot_nr > maxSlot) return json({ error: 'Ogiltigt platsnummer' }, 400);
 
         // Check if slot exists
@@ -182,7 +182,7 @@ export default {
             `INSERT INTO brannings_pass (branning_id, date, start_time, end_time, aktivitet, antal_platser, antal_reserver)
              VALUES (?, ?, ?, ?, ?, ?, ?)`
           ).bind(branningId, body.date, body.start_time, body.end_time,
-            body.aktivitet || null, body.antal_platser || 2, body.antal_reserver || 2).run();
+            body.aktivitet || null, body.antal_platser ?? 2, body.antal_reserver ?? 2).run();
           return json({ id: result.meta.last_row_id });
         }
 
