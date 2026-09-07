@@ -26,10 +26,11 @@ tändningen till nästa skiftbyte, sedan rullar passen dygnet runt med **två
 eldvakter och två reserver** vardera. Sista passet är det som pågår när elden
 släcks — **normalt fredag kväll**.
 
-Dagen efter släckningen är det **kylning** (09–12). **Tömningen** väntar till
-måndagen därpå, så att ugnen hinner svalna över helgen, och följs av
-**städning/inventering** och en **beredskapsdag**, alla 08–16. Stapeldagar
-läggs som egna dagar 08–16 med sex platser.
+Efter släckningen ett **reservpass** (fre 23–06) som bara bemannas om elden
+inte är släckt i tid. Sedan **svalnar ugnen** lördag och söndag — två personer
+per dag ser till den: väderskydd, öppna upp för att kyla. Måndag och tisdag
+**töms** ugnen, klart kl 14 på tisdagen. Stapeldagar läggs som egna dagar
+08–16 med sex platser. Alla dagar har två reserver.
 
 Modellen finns på ett enda ställe: [`worker/schema.mjs`](worker/schema.mjs).
 Ändra den där, inte i gränssnittet.

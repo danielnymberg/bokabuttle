@@ -10,21 +10,19 @@
 // elden inte är släckt i tid. I mars 2026 stod folk på passen efter
 // släckningen utan att veta att de var reserv; nu står det i namnet.
 //
-// Dagen efter släckningen kyls ugnen. Tömningen väntar till måndagen därpå —
-// ugnen ska hinna svalna över helgen, och tömning har aldrig lagts på en
-// lördag eller söndag. Städning och beredskapsdag följer direkt på tömningen.
-// Alla dagar har reserver: i mars skrev folk riktiga namn i reservfälten
-// även på tömning och beredskapsdag.
+// Sedan svalnar ugnen fram till måndag. Varje svalningsdag behöver två
+// personer som ser till ugnen: väderskydd om det regnar, öppna upp för att
+// kyla, och så vidare. Måndag och tisdag töms ugnen — klart klockan 14 på
+// tisdagen. Alla dagar har reserver: i mars skrev folk riktiga namn i
+// reservfälten även på tömningen.
 
 export const SKIFTBYTEN = ['06:00', '15:00', '23:00'];
 
-const EFTERARBETE = [
-  { from: '08:00', till: '16:00', namn: 'Tömning', platser: 5, reserver: 2 },
-  { from: '08:00', till: '16:00', namn: 'Städa av, inventera', platser: 5, reserver: 2 },
-  { from: '08:00', till: '16:00', namn: 'Extra dag (beredskap)', platser: 3, reserver: 2 },
+const SVALNING = { from: '08:00', till: '16:00', namn: 'Svalning — tillsyn (väderskydd, öppna upp)', platser: 2, reserver: 2 };
+const TOMNING = [
+  { from: '08:00', till: '16:00', namn: 'Tömning dag 1', platser: 5, reserver: 2 },
+  { from: '08:00', till: '14:00', namn: 'Tömning dag 2 — klart kl 14', platser: 5, reserver: 2 },
 ];
-
-const KYLNING = { from: '09:00', till: '12:00', namn: 'Kylning', platser: 2, reserver: 2 };
 const RESERVPASS = 'Reservpass — bara om elden inte är släckt';
 
 const WEEKDAYS = ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'];
@@ -118,29 +116,29 @@ export function genereraSchema({ stapling = [], tandning, slackning }) {
     antal_reserver: 2,
   });
 
-  const kylningsdag = addDays(sistaEldningsdag, 1);
-  rader.push({
-    date: kylningsdag,
-    start_time: KYLNING.from,
-    end_time: KYLNING.till,
-    aktivitet: KYLNING.namn,
-    antal_platser: KYLNING.platser,
-    antal_reserver: KYLNING.reserver,
-  });
-
-  let tomningsdag = kylningsdag;
+  // Svalning varje dag från dagen efter sista eldningspasset fram till (men
+  // inte med) nästa måndag. Är sista passet på en söndag blir det en vecka.
+  let dag = addDays(sistaEldningsdag, 1);
   do {
-    tomningsdag = addDays(tomningsdag, 1);
-  } while (veckodag(tomningsdag) !== 'mån');
-
-  EFTERARBETE.forEach((dag, i) => {
     rader.push({
-      date: addDays(tomningsdag, i),
-      start_time: dag.from,
-      end_time: dag.till,
-      aktivitet: dag.namn,
-      antal_platser: dag.platser,
-      antal_reserver: dag.reserver,
+      date: dag,
+      start_time: SVALNING.from,
+      end_time: SVALNING.till,
+      aktivitet: SVALNING.namn,
+      antal_platser: SVALNING.platser,
+      antal_reserver: SVALNING.reserver,
+    });
+    dag = addDays(dag, 1);
+  } while (veckodag(dag) !== 'mån');
+
+  TOMNING.forEach((t, i) => {
+    rader.push({
+      date: addDays(dag, i),
+      start_time: t.from,
+      end_time: t.till,
+      aktivitet: t.namn,
+      antal_platser: t.platser,
+      antal_reserver: t.reserver,
     });
   });
 
