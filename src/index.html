@@ -25,11 +25,45 @@
     <div id="admin-tools" class="hidden">
       <h2>Admin</h2>
       <div class="admin-section">
-        <h3>Skapa bränning</h3>
-        <form id="create-branning-form">
-          <input type="text" id="branning-name" placeholder="Namn (t.ex. Midsommarbränning 2025)" required>
-          <button type="submit">Skapa bränning</button>
+        <h3>Ny bränning</h3>
+        <p class="hint">
+          Ange när elden tänds och när ni räknar med att släcka, så läggs passen ut
+          automatiskt: skiftbyten 06:00, 15:00 och 23:00, två eldvakter och två
+          reserver per pass. Kylning dagen efter släckningen, tömning måndagen
+          därpå, sedan städning och en beredskapsdag. Normalt släcks elden på
+          fredag kväll. Du får se hela schemat innan något skapas.
+        </p>
+        <form id="schema-form">
+          <label>Namn <input type="text" id="schema-name" placeholder="Kalkbränning 2027" required></label>
+
+          <fieldset>
+            <legend>Stapling (valfritt)</legend>
+            <div class="falt-rad">
+              <label style="flex:1">Dag 1 <input type="date" id="schema-stapling-1"></label>
+              <label style="flex:1">Dag 2 <input type="date" id="schema-stapling-2"></label>
+              <label style="width:6rem">Personer <input type="number" id="schema-stapling-personer" value="6" min="1" max="20"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Elden tänds</legend>
+            <div class="falt-rad">
+              <label style="flex:1">Datum <input type="date" id="schema-tandning-datum" required></label>
+              <label style="flex:1">Klockslag <input type="time" id="schema-tandning-tid" value="07:00" required></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Elden släcks</legend>
+            <div class="falt-rad">
+              <label style="flex:1">Datum <input type="date" id="schema-slackning-datum" required></label>
+              <label style="flex:1">Klockslag <input type="time" id="schema-slackning-tid" value="23:00" required></label>
+            </div>
+          </fieldset>
+
+          <button type="submit">Visa schemat</button>
         </form>
+        <div id="schema-forhandsvisning"></div>
       </div>
 
       <div class="admin-section" id="add-pass-section" style="display:none">

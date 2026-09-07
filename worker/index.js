@@ -1,4 +1,5 @@
 import { hashPassword, verifyPassword, createJWT, verifyJWT, getAuthCookie, parseCookies } from './auth.js';
+import { genereraSchema } from './schema.mjs';
 
 function sanitize(str) {
   if (!str) return null;
@@ -186,34 +187,37 @@ export default {
           return json({ id: result.meta.last_row_id });
         }
 
-        // Generate pass (simple interval-based, kept for convenience)
-        if (method === 'POST' && path.match(/^\/api\/admin\/branning\/\d+\/generate-pass$/)) {
-          const branningId = parseInt(path.split('/')[4]);
+        // Bygg ett helt bränningsschema enligt modellen. Utan skapa=true
+        // returneras bara förhandsvisningen — inget skrivs.
+        if (method === 'POST' && path === '/api/admin/schema') {
           const body = await request.json();
-          const interval = body.interval || 6;
 
-          const branning = await env.DB.prepare('SELECT * FROM branningar WHERE id = ?').bind(branningId).first();
-          if (!branning) return json({ error: 'Bränningen finns inte' }, 404);
-
-          const startDate = new Date(branning.start_date + 'T00:00:00');
-          const endDate = new Date(branning.end_date + 'T23:59:59');
-          const stmts = [];
-
-          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            for (let h = 0; h < 24; h += interval) {
-              const startH = String(h).padStart(2, '0') + ':00';
-              const endH = String((h + interval) % 24).padStart(2, '0') + ':00';
-              stmts.push(
-                env.DB.prepare(
-                  `INSERT INTO brannings_pass (branning_id, date, start_time, end_time, aktivitet, antal_platser, antal_reserver)
-                   VALUES (?, ?, ?, ?, 'Bränning', 2, 2)`
-                ).bind(branningId, dateStr, startH, endH)
-              );
-            }
+          let pass;
+          try {
+            pass = genereraSchema(body);
+          } catch (err) {
+            return json({ error: err.message }, 400);
           }
-          if (stmts.length > 0) await env.DB.batch(stmts);
-          return json({ created: stmts.length });
+
+          if (!body.skapa) return json({ pass });
+
+          const namn = sanitize(body.name);
+          if (!namn) return json({ error: 'Bränningen behöver ett namn' }, 400);
+
+          const skapad = await env.DB.prepare(
+            'INSERT INTO branningar (name, start_date, end_date) VALUES (?, ?, ?)'
+          ).bind(namn, pass[0].date, pass[pass.length - 1].date).run();
+          const branningId = skapad.meta.last_row_id;
+
+          // Bara en bränning åt gången visas — stäng de tidigare, radera inte.
+          await env.DB.prepare('UPDATE branningar SET is_open = 0 WHERE id != ?').bind(branningId).run();
+
+          await env.DB.batch(pass.map(p => env.DB.prepare(
+            `INSERT INTO brannings_pass (branning_id, date, start_time, end_time, aktivitet, antal_platser, antal_reserver)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).bind(branningId, p.date, p.start_time, p.end_time, p.aktivitet, p.antal_platser, p.antal_reserver)));
+
+          return json({ branning_id: branningId, antal: pass.length });
         }
 
         // Update branning

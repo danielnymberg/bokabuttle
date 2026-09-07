@@ -334,6 +334,60 @@
     loadBranning();
   };
 
+  // --- NY BRÄNNING ---
+  function schemaIndata() {
+    const varde = (id) => document.getElementById(id).value;
+    const stapeldagar = [varde('schema-stapling-1'), varde('schema-stapling-2')].filter(Boolean);
+    return {
+      name: varde('schema-name'),
+      stapling: stapeldagar.map(datum => ({
+        datum,
+        personer: parseInt(varde('schema-stapling-personer')) || 6,
+      })),
+      tandning: { datum: varde('schema-tandning-datum'), tid: varde('schema-tandning-tid') },
+      slackning: { datum: varde('schema-slackning-datum'), tid: varde('schema-slackning-tid') },
+    };
+  }
+
+  function visaForhandsvisning(pass, indata) {
+    const rutan = document.getElementById('schema-forhandsvisning');
+    const antalBrannpass = pass.filter(p => p.aktivitet.startsWith('Bränning')).length;
+
+    const rader = pass.map(p => `
+      <tr>
+        <td>${formatDate(p.date)}</td>
+        <td>${formatTime(p.start_time)}–${formatTime(p.end_time)}</td>
+        <td>${esc(p.aktivitet)}</td>
+        <td>${p.antal_platser} platser${p.antal_reserver ? ` + ${p.antal_reserver} reserver` : ''}</td>
+      </tr>`).join('');
+
+    rutan.innerHTML = `
+      <p class="forhandsvisning-sammanfattning">
+        ${pass.length} rader, varav ${antalBrannpass} bränningspass.
+        Skapar du bränningen är det den som visas på sidan. Den som är öppen nu
+        stängs, men behåller sina bokningar.
+      </p>
+      <div class="forhandsvisning-tabell"><table><tbody>${rader}</tbody></table></div>
+      <button type="button" id="schema-skapa-btn">Skapa bränningen</button>
+      <div id="schema-status"></div>`;
+
+    document.getElementById('schema-skapa-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('schema-status');
+      const knapp = document.getElementById('schema-skapa-btn');
+      knapp.disabled = true;
+      try {
+        const svar = await api('/api/admin/schema', { method: 'POST', body: { ...indata, skapa: true } });
+        rutan.innerHTML = `<p class="klart">Bränningen är skapad med ${svar.antal} rader och visas nu på sidan.</p>`;
+        document.getElementById('schema-form').reset();
+        loadAdminBranningar();
+        loadBranning();
+      } catch (err) {
+        knapp.disabled = false;
+        statusEl.innerHTML = `<p class="error">${esc(err.error || 'Kunde inte skapa bränningen')}</p>`;
+      }
+    });
+  }
+
   // --- INIT ---
   document.addEventListener('DOMContentLoaded', async () => {
     // Save button
@@ -372,18 +426,16 @@
       }
     });
 
-    document.getElementById('create-branning-form').addEventListener('submit', async e => {
+    document.getElementById('schema-form').addEventListener('submit', async e => {
       e.preventDefault();
+      const rutan = document.getElementById('schema-forhandsvisning');
+      const indata = schemaIndata();
+
       try {
-        await api('/api/admin/branning', {
-          method: 'POST',
-          body: { name: document.getElementById('branning-name').value }
-        });
-        document.getElementById('create-branning-form').reset();
-        loadAdminBranningar();
-        loadBranning();
+        const { pass } = await api('/api/admin/schema', { method: 'POST', body: indata });
+        visaForhandsvisning(pass, indata);
       } catch (err) {
-        console.error('Fel vid skapande:', err);
+        rutan.innerHTML = `<p class="error">${esc(err.error || 'Kunde inte bygga schemat')}</p>`;
       }
     });
 

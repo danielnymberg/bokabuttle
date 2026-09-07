@@ -239,3 +239,41 @@ footer {
 footer a { color: #6c757d; text-decoration: none; }
 footer a:hover { color: #0d6efd; }
 .sep { margin: 0 0.5rem; }
+
+/* --- Ny bränning: formulär och förhandsvisning --- */
+.hint {
+  font-size: 0.85rem;
+  color: #6c757d;
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
+}
+
+#admin-panel fieldset {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: 0;
+}
+#admin-panel legend { font-size: 0.85rem; font-weight: 600; color: #495057; padding: 0 0.35rem; }
+#admin-panel label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: #495057; }
+.falt-rad { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.forhandsvisning-sammanfattning {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 1rem 0 0.5rem;
+}
+.forhandsvisning-tabell {
+  max-height: 20rem;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+.forhandsvisning-tabell table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.forhandsvisning-tabell td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f3f5; white-space: nowrap; }
+.forhandsvisning-tabell tr:last-child td { border-bottom: none; }
+.forhandsvisning-tabell td:nth-child(3) { width: 100%; white-space: normal; }
+.forhandsvisning-tabell td:nth-child(4) { color: #6c757d; }
+
+.klart { color: var(--green-border); font-size: 0.9rem; line-height: 1.5; }
