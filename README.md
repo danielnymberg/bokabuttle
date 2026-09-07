@@ -30,7 +30,9 @@ Efter släckningen ett **reservpass** (fre 23–06) som bara bemannas om elden
 inte är släckt i tid. Sedan **svalnar ugnen** lördag och söndag — två personer
 per dag ser till den: väderskydd, öppna upp för att kyla. Måndag och tisdag
 **töms** ugnen, klart kl 14 på tisdagen. Stapeldagar läggs som egna dagar
-08–16 med sex platser. Alla dagar har två reserver.
+08–16 med sex platser, plus en rad **lastmaskin med förare** varje stapeldag
+och **kranbil med förare** första dagen, så att någon tar på sig att komma
+med maskinen. Alla dagar har reserver.
 
 Modellen finns på ett enda ställe: [`worker/schema.mjs`](worker/schema.mjs).
 Ändra den där, inte i gränssnittet.

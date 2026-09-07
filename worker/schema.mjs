@@ -71,17 +71,19 @@ export function genereraSchema({ stapling = [], tandning, slackning }) {
 
   const rader = [];
 
-  for (const dag of stapling) {
+  // Staplingen behöver lastmaskin med förare hela tiden, och kranbil med
+  // förare första dagen. De är egna rader så att någon kan ta på sig att
+  // komma med maskinen — inte bara att vara på plats.
+  stapling.forEach((dag, i) => {
     if (!DATUM.test(dag.datum ?? '')) throw new Error('Ogiltigt datum för stapeldag.');
-    rader.push({
-      date: dag.datum,
-      start_time: dag.from ?? '08:00',
-      end_time: dag.till ?? '16:00',
-      aktivitet: dag.namn || 'Stapling',
-      antal_platser: dag.personer ?? 6,
-      antal_reserver: 2,
-    });
-  }
+    const from = dag.from ?? '08:00';
+    const till = dag.till ?? '16:00';
+    rader.push({ date: dag.datum, start_time: from, end_time: till, aktivitet: dag.namn || 'Stapling', antal_platser: dag.personer ?? 6, antal_reserver: 2 });
+    rader.push({ date: dag.datum, start_time: from, end_time: till, aktivitet: 'Lastmaskin med förare', antal_platser: 1, antal_reserver: 1 });
+    if (i === 0) {
+      rader.push({ date: dag.datum, start_time: from, end_time: till, aktivitet: 'Kranbil med förare', antal_platser: 1, antal_reserver: 1 });
+    }
+  });
 
   // Pass från tändningen fram till det pass som pågår när elden släcks.
   const slut = tidpunkt(slackning.datum, slackning.tid);
